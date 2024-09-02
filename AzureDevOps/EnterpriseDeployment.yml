@@ -1,0 +1,98 @@
+name: Enterprise-Workflow
+
+variables:
+  # PUT THIS IN A AUTOPILOT VARIABLE GROUP: 
+  # ----> FLYWAY_LICENSE_KEY: $(FLYWAY_LICENSE_KEY)
+  # ----> AGENT_POOL: $(AGENT_POOL)
+  FIRST_UNDO_SCRIPT: "002"
+  group: AutoPilot
+
+stages:
+  - stage: build
+    jobs:
+      - job: deploy_build
+        displayName: "Deploy Build"
+        
+        variables:
+          stage: 'Build'
+          displayName: 'Build'
+          targetEnvironment: "Build"
+          target_User: ""
+          target_Password: "" 
+          executeBuild: true
+          publishArtifacts: true
+          pool: $(AGENT_POOL)
+
+        steps:
+          - checkout: self
+          
+          - script: |
+              flyway -baselineOnMigrate=true -licenseKey="$(FLYWAY_LICENSE_KEY)" -configFiles="$(Build.SourcesDirectory)/flyway.toml" -locations="filesystem:$(Build.SourcesDirectory)/migrations" info clean info -environment="$(targetEnvironment)" -cleanDisabled=false -user="$(target_user)" -password="$(target_password)"
+            displayName: 'Clean Build DB'
+
+          - script: |
+              flyway -baselineOnMigrate=true -licenseKey="$(FLYWAY_LICENSE_KEY)" -configFiles="$(Build.SourcesDirectory)/flyway.toml" -locations="filesystem:$(Build.SourcesDirectory)/migrations" info migrate info -environment="$(targetEnvironment)" -cleanDisabled=false -user="$(target_user)" -password="$(target_password)"
+            displayName: 'Migrate Build DB'
+
+          - script: |
+              flyway -baselineOnMigrate=true -licenseKey="$(FLYWAY_LICENSE_KEY)" -configFiles="$(Build.SourcesDirectory)/flyway.toml" -locations="filesystem:$(Build.SourcesDirectory)/migrations" info undo info -environment="$(targetEnvironment)" -cleanDisabled=false -target="$(FIRST_UNDO_SCRIPT)" -user="$(target_user)" -password="$(target_password)"
+            displayName: 'Undo Build DB'
+
+  - stage: prod
+    jobs:
+      - job: prod_preparation
+        displayName: 'Production Deployment Preparation - Report Creation'
+
+        variables:
+          stage: 'Prod'
+          databaseName: "AutoPilotProd"
+          target_Environment: "Prod"
+          target_User: ""
+          target_Password: "" 
+          check_Environment: "Check"
+          check_User: ""
+          check_Password: ""
+          generateDriftAndChangeReport: true
+          failReleaseIfDriftDetected: false
+          staticCodeAnalysis: false
+          publishArtifacts: true
+          pool: $(AGENT_POOL)
+
+        steps:
+          - checkout: self
+
+          - script: |
+              flyway -baselineOnMigrate=true -licenseKey="$(FLYWAY_LICENSE_KEY)" -configFiles="$(Build.SourcesDirectory)/flyway.toml" -locations="filesystem:$(Build.SourcesDirectory)/migrations" check -dryrun -changes -drift migrate info "-check.failOnDrift=$(failReleaseIfDriftDetected)" "-check.buildEnvironment=$(check_Environment)" -environment="$(target_Environment)" "-reportFilename=$(Build.SourcesDirectory)/reports/$(databaseName)-Run-$(Build.BuildId)-Check-Report.html" -user="$(target_user)" -password="$(target_password)" -check.buildUser="$(check_user)" -check.buildPassword="$(check_password)"
+            displayName: 'Create Check Reports'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Check Report as Artifact'
+            inputs:
+              PathtoPublish: $(Build.SourcesDirectory)/reports
+              ArtifactName: flyway-reports
+
+      - job: deploy_production
+        displayName: 'Deploy Production'
+        dependsOn: prod_preparation
+
+        variables:
+          stage: 'Prod'
+          databaseName: "AutoPilotProd"
+          target_Environment: "Prod"
+          target_User: ""
+          target_Password: "" 
+          check_Environment: "Check"
+          check_User: ""
+          check_Password: ""
+          generateDriftAndChangeReport: true
+          failReleaseIfDriftDetected: false
+          staticCodeAnalysis: false
+          publishArtifacts: true
+          pool: $(AGENT_POOL)
+
+        steps:
+          - checkout: self
+
+          - script: |
+              flyway -baselineOnMigrate=true -licenseKey="$(FLYWAY_LICENSE_KEY)" -configFiles="$(Build.SourcesDirectory)/flyway.toml" -locations="filesystem:$(Build.SourcesDirectory)/migrations" info migrate info -environment="$(target_Environment)"
+            displayName: 'Migrate Build DB'

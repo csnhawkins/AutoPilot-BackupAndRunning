@@ -93,12 +93,4 @@ CREATE TABLE [dbo].[flyway_schema_history](
 GO
 IF @@ERROR <> 0 SET NOEXEC ON
 GO
-PRINT N'Creating primary key [flyway_schema_history_pk] on [dbo].[flyway_schema_history]'
-GO
-USE ${flyway:database}
-IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[flyway_schema_history_pk]', 'PK') AND parent_object_id = OBJECT_ID(N'[dbo].[flyway_schema_history]', 'U'))
-ALTER TABLE [dbo].[flyway_schema_history] ADD DEFAULT (GETDATE()) FOR [installed_on]
-GO
-IF @@ERROR <> 0 SET NOEXEC ON
-GO
 COMMIT TRANSACTION

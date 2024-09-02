@@ -17,7 +17,8 @@ env:
   # If the first undo script is U002, this will validate all undo scripts up to and including that
   FIRST_UNDO_SCRIPT: "002"
   # Enable this for additional debug logging
-  ACTIONS_RUNNER_DEBUG: false 
+  ACTIONS_RUNNER_DEBUG: false
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true # For security purposes, this is set to true to enable latest Node20 version
  
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
